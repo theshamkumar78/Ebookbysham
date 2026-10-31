@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   BookOpen,
   Search,
@@ -9,6 +9,7 @@ import {
   Calculator,
   BriefcaseBusiness,
 } from "lucide-react";
+import { supabase } from "./supabase";
 import "./App.css";
 
 const categories = [
@@ -19,28 +20,63 @@ const categories = [
   { name: "Business / BBA", Icon: BriefcaseBusiness },
 ];
 
-const books = [
-  { title: "Learn Programming", category: "Computer Science", color: "#2563eb" },
-  { title: "English Grammar", category: "English", color: "#d97706" },
-  { title: "Basic Mathematics", category: "Mathematics", color: "#7c3aed" },
-  { title: "Biology for Students", category: "Medical / MBBS", color: "#15803d" },
-  { title: "Business Fundamentals", category: "Business / BBA", color: "#be185d" },
-];
+type Book = {
+  id: string;
+  title: string;
+  author: string | null;
+  description: string | null;
+  category: string | null;
+  cover_url: string | null;
+  file_url: string | null;
+};
 
 function App() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
+  const [books, setBooks] = useState<Book[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function fetchBooks() {
+      setLoading(true);
+      setError("");
+
+      const { data, error } = await supabase
+        .from("ebooks")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setError(error.message);
+      } else {
+        setBooks(data || []);
+      }
+
+      setLoading(false);
+    }
+
+    fetchBooks();
+  }, []);
 
   const filteredBooks = books.filter((book) => {
     const matchesSearch =
       book.title.toLowerCase().includes(search.toLowerCase()) ||
-      book.category.toLowerCase().includes(search.toLowerCase());
+      (book.category || "").toLowerCase().includes(search.toLowerCase());
 
     const matchesCategory =
       category === "All" || book.category === category;
 
     return matchesSearch && matchesCategory;
   });
+
+  const colors = [
+    "#2563eb",
+    "#d97706",
+    "#7c3aed",
+    "#15803d",
+    "#be185d",
+  ];
 
   return (
     <div className="app">
@@ -150,39 +186,70 @@ function App() {
           ))}
         </div>
 
-        <div className="book-grid">
-          {filteredBooks.map((book) => (
-            <article className="book-card" key={book.title}>
-              <div
-                className="book-cover"
-                style={{ backgroundColor: book.color }}
-              >
-                <BookOpen size={48} />
-                <strong>{book.title}</strong>
-                <small>PAK eLIBRARY</small>
-              </div>
+        {loading && <p>Loading books from Supabase...</p>}
 
-              <div className="book-info">
-                <span>{book.category}</span>
-                <h3>{book.title}</h3>
-                <p>Educational learning resource</p>
+        {error && (
+          <p style={{ color: "red" }}>
+            Database Error: {error}
+          </p>
+        )}
 
-                <button
-                  className="read-button"
-                  onClick={() =>
-                    alert("PDF reading will be added in the next step!")
-                  }
+        {!loading && !error && (
+          <div className="book-grid">
+            {filteredBooks.map((book, index) => (
+              <article className="book-card" key={book.id}>
+                <div
+                  className="book-cover"
+                  style={{
+                    backgroundColor: colors[index % colors.length],
+                    backgroundImage: book.cover_url
+                      ? `url("${book.cover_url}")`
+                      : undefined,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                  }}
                 >
-                  Read Book →
-                </button>
-              </div>
-            </article>
-          ))}
+                  {!book.cover_url && (
+                    <>
+                      <BookOpen size={48} />
+                      <strong>{book.title}</strong>
+                      <small>PAK eLIBRARY</small>
+                    </>
+                  )}
+                </div>
 
-          {filteredBooks.length === 0 && (
-            <p>No books found. Try another search.</p>
-          )}
-        </div>
+                <div className="book-info">
+                  <span>{book.category || "General"}</span>
+                  <h3>{book.title}</h3>
+                  <p>
+                    {book.author || book.description || "Educational learning resource"}
+                  </p>
+
+                  <button
+                    className="read-button"
+                    onClick={() => {
+                      if (book.file_url) {
+                        window.open(
+                          book.file_url,
+                          "_blank",
+                          "noopener,noreferrer"
+                        );
+                      } else {
+                        alert("PDF file has not been added yet.");
+                      }
+                    }}
+                  >
+                    Read Book →
+                  </button>
+                </div>
+              </article>
+            ))}
+
+            {filteredBooks.length === 0 && (
+              <p>No books found. Try another search.</p>
+            )}
+          </div>
+        )}
       </section>
 
       <footer>
@@ -196,3 +263,4 @@ function App() {
 }
 
 export default App;
+
