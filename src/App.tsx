@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from "react";
+import type { Session } from "@supabase/supabase-js";
 import {
   BookOpen,
   Search,
@@ -10,6 +11,7 @@ import {
   BriefcaseBusiness,
 } from "lucide-react";
 import { supabase } from "./supabase";
+import Auth from "./Auth";
 import "./App.css";
 
 const categories = [
@@ -36,6 +38,22 @@ function App() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [session, setSession] = useState<Session | null>(null);
+  const [authView, setAuthView] = useState<"login" | "signup" | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     async function fetchBooks() {
@@ -78,6 +96,24 @@ function App() {
     "#be185d",
   ];
 
+  async function handleLogout() {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      alert(error.message);
+    }
+  }
+
+  if (authView) {
+    return (
+      <Auth
+        initialMode={authView}
+        onLogin={() => setAuthView(null)}
+        onClose={() => setAuthView(null)}
+      />
+    );
+  }
+
   return (
     <div className="app">
       <nav className="navbar">
@@ -88,21 +124,47 @@ function App() {
         </div>
 
         <a href="#home" className="logo">
-          <BookOpen size={28} />
-          <span>Pak<span className="blue">eLibrary</span></span>
-        </a>
+  <img
+    src="/pakelibrary-logo.png"
+    alt="PakeLibrary"
+  />
+</a>
 
-        <a href="#books" className="nav-button">
-          Explore Books
-        </a>
+        <div className="nav-auth">
+          {session ? (
+            <>
+              <span className="user-email">
+                {session.user.email}
+              </span>
+              <button className="nav-button" onClick={handleLogout}>
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                className="nav-button"
+                onClick={() => setAuthView("login")}
+              >
+                Login
+              </button>
+              <button
+                className="nav-button signup-button"
+                onClick={() => setAuthView("signup")}
+              >
+                Sign Up
+              </button>
+            </>
+          )}
+        </div>
       </nav>
 
       <section className="hero" id="home">
         <span className="tag">YOUR DIGITAL LIBRARY</span>
 
         <h1>
-          Knowledge for every
-          <span className="blue"> Pakistani learner.</span>
+          Explore More.
+          <span className="blue"> Know More.</span>
         </h1>
 
         <p>
@@ -263,4 +325,3 @@ function App() {
 }
 
 export default App;
-
